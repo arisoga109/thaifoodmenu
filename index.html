@@ -50,7 +50,7 @@ nav p{margin:0;font-size:.8rem;color:var(--muted)}
 .pic,.hero-pic{position:relative}
 img.photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .hero-pic img.photo{border-radius:12px}
-a.credit{position:absolute;right:8px;bottom:8px;font-size:.68rem;color:var(--fg);background:var(--surface);padding:.05rem .45rem;border-radius:4px;text-decoration:none;opacity:.9}
+a.credit,span.credit{position:absolute;right:8px;bottom:8px;font-size:.68rem;color:var(--fg);background:var(--surface);padding:.05rem .45rem;border-radius:4px;text-decoration:none;opacity:.9}
 .hero-pic canvas{width:100%;height:100%;display:block}
 
 section{margin-top:44px}
@@ -116,6 +116,11 @@ ul.rules li{display:flex;gap:8px;align-items:flex-start;font-size:.92rem}
 .gstrip img{width:170px;height:120px;object-fit:cover;border-radius:8px;display:block;background:var(--table)}
 .gstrip figcaption{font-size:.68rem;color:var(--muted);line-height:1.4;margin-top:4px;overflow-wrap:anywhere}
 .gnote{font-size:.78rem;color:var(--muted);margin:4px 0 0}
+.own{border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:.88rem}
+.own summary{cursor:pointer;color:var(--leaf);font-weight:500}
+.own ol{margin:8px 0;padding-left:1.2rem;display:grid;gap:4px}
+.own code{background:var(--table);padding:0 .3rem;border-radius:4px;overflow-wrap:anywhere}
+.btn.small{display:inline-block;font-size:.82rem;padding:.3rem .8rem;text-decoration:none}
 .status{font-size:.78rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px}
 
 @media (max-width:760px){.hero{grid-template-columns:1fr;padding:20px}.hero-pic{order:-1}.row .lbl{width:100%}.yn{grid-template-columns:1fr}}
@@ -531,12 +536,26 @@ async function loadPhotos(){
   applyPhotos(document,true);
   const n=Object.keys(PHOTO).length,c=document.getElementById("cnt");if(c&&n)c.textContent+=` · มีภาพถ่ายจริง ${n} เมนู`;
 }
+/* Your own photos win: photos.json entries first, then images/<ชื่อเมนู>.jpg or .png in this repository, then Wikipedia */
+let OWN={};const RES={};
+const onWeb=/^https?:$/.test(location.protocol)&&!/claude\.ai|claudeusercontent/.test(location.hostname);
+async function loadOwn(){if(!onWeb)return;try{const r=await fetch("photos.json",{cache:"no-cache"});if(r.ok){const j=await r.json();
+  Object.entries(j).forEach(([k,v])=>{if(k.startsWith("_"))return;const o=typeof v==="string"?{src:v}:v;if(o&&o.src)OWN[k]=o;});applyPhotos(document,true);}}catch(e){}}
+function sources(n){const a=[];if(OWN[n])a.push({src:OWN[n].src,own:1,credit:OWN[n].credit,link:OWN[n].link});
+  if(onWeb)["jpg","png","webp"].forEach(x=>a.push({src:"images/"+encodeURIComponent(n)+"."+x,own:1}));
+  if(PHOTO[n])a.push({src:PHOTO[n].src,wiki:PHOTO[n]});return a;}
 function applyPhotos(root,credit){root.querySelectorAll("canvas[data-dish]").forEach(cv=>{
-  const p=PHOTO[cv.dataset.dish],box=cv.parentNode;box.querySelectorAll("img.photo,a.credit").forEach(e=>e.remove());if(!p)return;
-  const im=new Image();im.className="photo";im.alt=cv.dataset.dish;im.loading="lazy";im.referrerPolicy="no-referrer";im.src=p.src;
-  im.onerror=()=>{im.remove();box.querySelector("a.credit")?.remove();};box.insertBefore(im,cv.nextSibling);
-  if(credit&&!box.closest("button")){const a=document.createElement("a");a.className="credit";a.target="_blank";a.rel="noopener";
-    a.href="https://th.wikipedia.org/wiki/"+encodeURIComponent("ไฟล์:"+p.file);a.textContent="ภาพ: วิกิพีเดีย";box.appendChild(a);}
+  const n=cv.dataset.dish,box=cv.parentNode;box.querySelectorAll("img.photo,a.credit,span.credit").forEach(e=>e.remove());
+  let list=sources(n);if(RES[n]&&list.some(x=>x.src===RES[n].src))list=[RES[n]];else if(RES[n]===null&&!PHOTO[n]&&!OWN[n])return;
+  if(!list.length)return;let i=0;
+  const im=new Image();im.className="photo";im.alt=n;im.loading="lazy";im.referrerPolicy="no-referrer";
+  const addCredit=c=>{if(!credit||box.closest("button"))return;let a;
+    if(c.wiki){a=document.createElement("a");a.href="https://th.wikipedia.org/wiki/"+encodeURIComponent("ไฟล์:"+c.wiki.file);a.textContent="ภาพ: วิกิพีเดีย";}
+    else if(c.credit){a=document.createElement(c.link?"a":"span");if(c.link)a.href=c.link;a.textContent="ภาพ: "+c.credit;}
+    if(!a)return;a.className="credit";if(a.href){a.target="_blank";a.rel="noopener";}box.appendChild(a);};
+  im.onload=()=>{RES[n]=list[i];addCredit(list[i]);};
+  im.onerror=()=>{i++;if(i<list.length){im.src=list[i].src;}else{im.remove();RES[n]=null;}};
+  im.src=list[0].src;box.insertBefore(im,cv.nextSibling);
 });}
 
 /* Plating gallery: openly licensed photos from Wikimedia Commons and Openverse (Flickr CC and other open archives) */
@@ -554,6 +573,16 @@ async function loadGallery(d,box){
   if(!g.length){box.innerHTML='<p class="gnote">ยังไม่พบภาพจากคลังภาพเปิด ลองกด "ดูภาพจริง" ด้านบน</p>';return;}
   box.innerHTML=`<div class="gstrip">${g.map(x=>`<figure><a href="${esc(x.link)}" target="_blank" rel="noopener"><img src="${esc(x.thumb)}" alt="${esc(d.n)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('figure').remove()"></a><figcaption>${esc(x.by).slice(0,40)} · ${esc(x.lic)}<br>${esc(x.src)}</figcaption></figure>`).join("")}</div>
    <p class="gnote">ภาพจากคลังภาพเปิด ใช้ซ้ำได้ตามสัญญาอนุญาตของแต่ละภาพ กดที่ภาพเพื่อดูต้นฉบับและเครดิตเต็ม บางภาพอาจไม่ตรงเมนูทั้งหมด</p>`;}
+
+function repoInfo(){const h=location.hostname;if(!h.endsWith(".github.io"))return null;const owner=h.split(".")[0],repo=location.pathname.split("/").filter(Boolean)[0]||h;return{owner,repo};}
+function ownHelp(d){const ri=repoInfo(),fn=d.n+".jpg";
+  const up=ri?`<a class="btn ghost small" href="https://github.com/${ri.owner}/${ri.repo}/upload/main/images" target="_blank" rel="noopener">อัปโหลดภาพใน GitHub ↗</a>`:"";
+  return `<details class="own"><summary>ใส่ภาพของคุณเองสำหรับเมนูนี้</summary>
+   <ol><li>ตั้งชื่อไฟล์ภาพว่า <code>${esc(fn)}</code> <button class="linkbtn" type="button" onclick="copyName(this,'${esc(fn)}')">คัดลอกชื่อ</button> (ใช้ .png หรือ .webp ก็ได้)</li>
+   <li>อัปโหลดไฟล์ไว้ในโฟลเดอร์ <code>images</code> ของ repository แล้วกด Commit changes</li>
+   <li>รอ 1–2 นาทีแล้วรีเฟรชหน้านี้ ภาพของคุณจะแสดงแทนภาพเดิม</li></ol>${up}
+   <p class="gnote">ถ้าจะใช้ลิงก์ภาพจากเว็บอื่น ให้เพิ่มในไฟล์ <code>photos.json</code> ตามตัวอย่างในไฟล์นั้น ควรใช้ภาพที่ถ่ายเองหรือได้รับอนุญาตแล้ว</p></details>`;}
+async function copyName(b,t){try{await navigator.clipboard.writeText(t);b.textContent="คัดลอกแล้ว";}catch(e){b.textContent=t;}setTimeout(()=>b.textContent="คัดลอกชื่อ",2000);}
 let LIMIT=24;
 function render(){
   const all=D.filter(match),r=all.slice(0,LIMIT);document.getElementById("count").textContent=all.length===D.length?`ทั้งหมด ${all.length} เมนู`:`พบ ${all.length} เมนูที่ทำได้`;
@@ -583,6 +612,7 @@ function openSheet(name,from){const d=D.find(x=>x.n===name);lastFocus=from||docu
    <div><h2 id="sName">${esc(d.n)}</h2>${d.alt?`<div class="alt">ชื่ออื่น: ${esc(d.alt)}</div>`:""}</div>
    <div class="tags"><span class="pill r">${rl(d.r)}</span><span class="pill">${d.t}</span><span class="pill">${esc(d.s)}</span>${d.p?`<span class="pill">${esc(d.p)}</span>`:""}</div>
    <div class="gal"><div class="lab">การจัดจานหลากหลายแบบ</div><div id="galbox"><p class="gnote">กำลังค้นภาพจากคลังภาพเปิด…</p></div></div>
+   ${ownHelp(d)}
    <div class="tasteb"><div class="lab">รสชาติแบบดั้งเดิม</div>${esc(d.taste)}</div>
    <div><div class="lab">วัตถุดิบหลัก</div>${esc(d.ing)}</div>
    <div class="yn"><div class="ok"><div class="lab">เนื้อสัตว์ที่ใช้ได้</div>${esc(d.mOk)}</div><div class="no"><div class="lab">ไม่นิยมใช้</div>${esc(d.mNo)}</div></div>
@@ -603,7 +633,7 @@ document.getElementById("reset").onclick=()=>{Object.assign(S,{meat:"ทั้�
 buildChips("fMeat","meat");buildChips("fFlavor","flavor");buildChips("fType","type");buildChips("fRegion","region");
 document.getElementById("more").onclick=()=>{LIMIT+=24;render();};
 function resetLimit(){LIMIT=24;}
-sync();shuffle();render();regions();loadPhotos();document.getElementById("cnt").textContent=`${D.length} เมนูจาก 7 กลุ่มภาค · ร่างรอตรวจทาน`;
+sync();shuffle();render();regions();loadOwn();loadPhotos();document.getElementById("cnt").textContent=`${D.length} เมนูจาก 7 กลุ่มภาค · ร่างรอตรวจทาน`;
 let rz;addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>document.querySelectorAll("canvas[data-dish]").forEach(c=>c.offsetParent&&drawDish(c)),150);});
 </script>
 
