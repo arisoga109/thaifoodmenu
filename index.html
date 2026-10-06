@@ -714,7 +714,7 @@ async function loadGallery(d,box){
    <p class="gnote">ภาพจากคลังภาพเปิด ใช้ซ้ำได้ตามสัญญาอนุญาตของแต่ละภาพ กดที่ภาพเพื่อดูต้นฉบับและเครดิตเต็ม บางภาพอาจไม่ตรงเมนูทั้งหมด</p>`;}
 
 function repoInfo(){const h=location.hostname;if(!h.endsWith(".github.io"))return null;const owner=h.split(".")[0],repo=location.pathname.split("/").filter(Boolean)[0]||h;return{owner,repo};}
-function ownHelp(d){const ri=repoInfo(),fn=d.n+".jpg";
+function ownHelp(d){const ri=repoInfo(),fn=d.n+".jpg";if(!ri)return "";
   const up=ri?`<a class="btn ghost small" href="https://github.com/${ri.owner}/${ri.repo}/upload/main/images" target="_blank" rel="noopener">อัปโหลดภาพใน GitHub ↗</a>`:"";
   return `<details class="own"><summary>ใส่ภาพของคุณเองสำหรับเมนูนี้</summary>
    <ol><li>ตั้งชื่อไฟล์ภาพว่า <code>${esc(fn)}</code> <button class="linkbtn" type="button" onclick="copyName(this,'${esc(fn)}')">คัดลอกชื่อ</button> (ใช้ .png หรือ .webp ก็ได้)</li>
