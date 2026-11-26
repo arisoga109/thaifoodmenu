@@ -65,6 +65,11 @@ h2.sec{font-family:var(--display);font-size:1.5rem;margin:0 0 4px}
 .resbar{display:flex;justify-content:space-between;align-items:center;margin:16px 0 4px;font-size:.88rem;color:var(--muted);gap:8px;flex-wrap:wrap}
 .rb{display:flex;gap:14px;flex-wrap:wrap}
 .linkbtn{background:none;border:0;color:var(--leaf);text-decoration:underline;padding:0}
+.pickwrap{margin:12px 0 4px}
+.picks{margin-top:12px}
+.picks[hidden]{display:none}
+.picks .tile{position:relative}
+.rank{position:absolute;top:10px;left:10px;z-index:1;width:30px;height:30px;border-radius:999px;background:var(--leaf);color:var(--bg);display:grid;place-items:center;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:16px;margin-top:10px}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;text-align:left;padding:0;color:inherit;display:flex;flex-direction:column;transition:transform .15s,border-color .15s}
@@ -154,6 +159,7 @@ ul.rules li{display:flex;gap:8px;align-items:flex-start;font-size:.92rem}
     <div class="row"><span class="lbl">วัตถุดิบในตู้เย็น</span><input id="q" type="search" placeholder="เช่น ตะไคร้ มะเขือ กะทิ" aria-label="ค้นจากวัตถุดิบ"></div>
   </div>
   <div class="resbar"><span id="count"></span><span class="rb"><button class="linkbtn" id="copyMissing" type="button" hidden>คัดลอกรายชื่อเมนูที่ยังไม่มีภาพ</button><button class="linkbtn" id="reset" type="button">ล้างตัวเลือก</button></span></div>
+  <div class="pickwrap"><button class="btn" id="pick3" type="button">🎲 สุ่มอาหาร 3 ลำดับ</button><div class="grid picks" id="picks" aria-live="polite" hidden></div></div>
   <div class="grid" id="grid"></div>
   <div class="morewrap"><button class="btn ghost" id="more" type="button" hidden>ดูเพิ่ม</button></div>
 </section>
@@ -1027,10 +1033,18 @@ function render(){
   document.getElementById("more").hidden=all.length<=LIMIT;document.getElementById("more").textContent=`ดูเพิ่มอีก ${all.length-LIMIT} เมนู`;
   const g=document.getElementById("grid");
   if(!r.length){g.innerHTML='<p class="empty">ยังไม่มีเมนูที่ตรงกับตัวเลือกทั้งหมดนี้ ลองเอาตัวเลือกออกสักข้อ</p>';return;}
-  g.innerHTML=r.map(d=>`<button class="tile" type="button" data-n="${esc(d.n)}"><div class="pic"><canvas data-dish="${esc(d.n)}" role="img" aria-label="ภาพวาดประกอบ ${esc(d.n)}"></canvas></div>
-   <div class="body"><h3>${esc(d.n)}</h3><div class="tags"><span class="pill r">${rl(d.r)}</span>${F[d.n].map(f=>`<span class="pill f">${f}</span>`).join("")}</div><p>${esc(d.taste)}</p></div></button>`).join("");
+  g.innerHTML=r.map(d=>tileHTML(d)).join("");
   g.querySelectorAll("canvas").forEach(drawDish);applyPhotos(g,false);
   g.querySelectorAll(".tile").forEach(t=>t.onclick=()=>openSheet(t.dataset.n,t));}
+function tileHTML(d,rank){return `<button class="tile" type="button" data-n="${esc(d.n)}">${rank?`<span class="rank" aria-label="ลำดับที่ ${rank}">${rank}</span>`:""}<div class="pic"><canvas data-dish="${esc(d.n)}" role="img" aria-label="ภาพวาดประกอบ ${esc(d.n)}"></canvas></div>
+   <div class="body"><h3>${esc(d.n)}</h3><div class="tags"><span class="pill r">${rl(d.r)}</span>${F[d.n].map(f=>`<span class="pill f">${f}</span>`).join("")}</div><p>${esc(d.taste)}</p></div></button>`;}
+function pick3(){const a=D.filter(match);
+  for(let i=0;i<3&&i<a.length-1;i++){const j=i+Math.floor(Math.random()*(a.length-i));[a[i],a[j]]=[a[j],a[i]];}
+  const pk=a.slice(0,3),p=document.getElementById("picks");p.hidden=false;
+  if(!pk.length){p.innerHTML='<p class="empty">ไม่มีเมนูให้สุ่มในตัวเลือกนี้ ลองเอาตัวเลือกออกสักข้อ</p>';return;}
+  p.innerHTML=pk.map((d,i)=>tileHTML(d,i+1)).join("");
+  p.querySelectorAll("canvas").forEach(drawDish);applyPhotos(p,false);
+  p.querySelectorAll(".tile").forEach(t=>t.onclick=()=>openSheet(t.dataset.n,t));}
 function regions(){const el=document.getElementById("regions");
   el.innerHTML=OPT.region.slice(1).map(r=>`<button class="reg" type="button" data-r="${r}"><b>${rl(r)}</b><span>${D.filter(d=>d.r===r).length} เมนู · ${RD[r]}</span></button>`).join("");
   el.querySelectorAll(".reg").forEach(b=>b.onclick=()=>{Object.assign(S,{meat:"ทั้งหมด",flavor:"ทั้งหมด",type:"ทั้งหมด",photo:"ทั้งหมด",q:"",region:b.dataset.r});sync();render();document.getElementById("find").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion:reduce)").matches?"auto":"smooth"});});}
@@ -1072,6 +1086,7 @@ buildChips("fMeat","meat");buildChips("fFlavor","flavor");buildChips("fType","ty
 document.getElementById("more").onclick=()=>{LIMIT+=24;render();};
 function resetLimit(){LIMIT=24;}
 document.getElementById("copyMissing").onclick=copyMissing;
+document.getElementById("pick3").onclick=pick3;
 if(!onWeb)document.getElementById("fPhoto").hidden=true;
 sync();shuffle();render();regions();Promise.allSettled([loadOwn(),loadImagesDir(),loadPhotos()]).then(()=>{updMissing();if(S.photo!=="ทั้งหมด")render();});document.getElementById("cnt").textContent=`${D.length} เมนูจาก 7 กลุ่มภาค · ร่างรอตรวจทาน`;
 let rz;addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>document.querySelectorAll("canvas[data-dish]").forEach(c=>c.offsetParent&&drawDish(c)),150);});
